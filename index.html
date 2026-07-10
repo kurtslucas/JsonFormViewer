@@ -293,6 +293,39 @@ function exportDoc(id) {
   showToast('JSON exportado!');
 }
 
+function copyJSON(id) {
+  var d = docs.find(function(x) { return x._id === id; });
+  if (!d) return;
+  var clean = {};
+  for (var k in d) { if (k !== '_id' && k !== '_fileName') clean[k] = d[k]; }
+  var jsonStr = JSON.stringify(clean, null, 2);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(jsonStr).then(function() {
+      showToast('JSON copiado para a área de transferência!');
+    }, function() {
+      fallbackCopy(jsonStr);
+    });
+  } else {
+    fallbackCopy(jsonStr);
+  }
+}
+
+function fallbackCopy(text) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  try {
+    document.execCommand('copy');
+    showToast('JSON copiado para a área de transferência!');
+  } catch(e) {
+    showToast('Não foi possível copiar automaticamente');
+  }
+  document.body.removeChild(ta);
+}
+
 function exportAll() {
   if (docs.length === 0) { showToast('Nenhum JSON para exportar'); return; }
   var all = docs.map(function(d) {
@@ -380,7 +413,7 @@ function renderGeneric(o, container) {
     });
   }
   summaryHtml += '</div>' +
-    '<div class="export-bar"><button class="btn btn-sm btn-report" onclick="exportReport(\'' + o._id + '\')">\uD83D\uDCC4 Exportar Relatorio</button><button class="btn btn-sm" onclick="exportDoc(\'' + o._id + '\')">Exportar JSON</button></div>';
+    '<div class="export-bar"><button class="btn btn-sm btn-report" onclick="exportReport(\'' + o._id + '\')">\uD83D\uDCC4 Exportar Relatorio</button><button class="btn btn-sm" onclick="copyJSON(\'' + o._id + '\')">\uD83D\uDCCB Copiar JSON</button><button class="btn btn-sm" onclick="exportDoc(\'' + o._id + '\')">Exportar JSON</button></div>';
   var simpleFields = [], arrayFields = [], objectFields = [];
   keys.forEach(function(k) {
     classifyField(k, o[k], simpleFields, arrayFields, objectFields);
