@@ -548,17 +548,41 @@ function renderGenericObject(obj, parentKey) {
     } else if (Array.isArray(v)) {
       if (v.length === 0) {
         html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + '</span><span class="data-value null">[] (vazio)</span></div>';
-      } else if (typeof v[0] === 'object') {
+      } else if (v.every(function(item) { return item !== null && typeof item === 'object'; })) {
+        // Array de objetos - renderiza cada objeto como fieldset aninhado
         html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + ' (' + v.length + ' itens)</span>';
-        v.forEach(function(subItem) {
-          html += '<div class="nested-object" style="margin-top:8px;">' + renderGenericObject(subItem, k) + '</div>';
+        v.forEach(function(subItem, subIdx) {
+          var subTitle = subItem.nome || subItem.name || subItem.title || subItem.id || subItem.rota || subItem.bucket || subItem.codigo || ('Item ' + (subIdx + 1));
+          html += '<div class="nested-object" style="margin-top:8px;">';
+          html += '<div class="fieldset-title" style="font-size:13px;padding-bottom:6px;margin-bottom:10px;">' + escapeHtml(subTitle) + '</div>';
+          html += renderGenericObject(subItem, k);
+          html += '</div>';
         });
         html += '</div>';
-      } else {
+      } else if (v.every(function(item) { return item === null || typeof item !== 'object'; })) {
+        // Array de primitivos - exibe como lista separada por virgula
         html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + '</span><span class="data-value">' + escapeHtml(v.join(', ')) + '</span></div>';
+      } else {
+        // Array misto - renderiza cada item recursivamente
+        html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + ' (' + v.length + ' itens)</span>';
+        v.forEach(function(subItem, subIdx) {
+          if (subItem !== null && typeof subItem === 'object') {
+            html += '<div class="nested-object" style="margin-top:8px;">';
+            html += '<div class="fieldset-title" style="font-size:13px;padding-bottom:6px;margin-bottom:10px;">Item ' + (subIdx + 1) + '</div>';
+            html += renderGenericObject(subItem, k);
+            html += '</div>';
+          } else {
+            html += '<div class="data-item" style="margin-top:4px;"><span class="data-label">[' + subIdx + ']</span>' + fmtVal(subItem, k) + '</div>';
+          }
+        });
+        html += '</div>';
       }
     } else if (typeof v === 'object') {
-      html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + '</span>' + renderNestedBlock(v, k) + '</div>';
+      // Objeto aninhado - renderiza recursivamente dentro de nested-object
+      html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + '</span>';
+      html += '<div class="nested-object">';
+      html += renderGenericObject(v, k);
+      html += '</div></div>';
     }
   });
   html += '</div>';
@@ -600,21 +624,6 @@ function pickSummaryFields(o) {
     }
   }
   return candidates.slice(0, 8);
-}
-
-function renderNestedBlock(obj, parentKey) {
-  if (!obj || typeof obj !== 'object') return fmtVal(obj, parentKey);
-  var html = '<div class="nested-object">';
-  Object.keys(obj).forEach(function(k) {
-    var v = obj[k];
-    if (v !== null && typeof v === 'object' && !Array.isArray(v)) {
-      html += '<div class="data-item" style="margin-bottom:8px;"><span class="data-label">' + k + '</span>' + renderNestedBlock(v, k) + '</div>';
-    } else {
-      html += '<div class="data-item" style="margin-bottom:8px;"><span class="data-label">' + k + '</span>' + fmtVal(v, k) + '</div>';
-    }
-  });
-  html += '</div>';
-  return html;
 }
 
 function switchInnerTab(tabId) {
