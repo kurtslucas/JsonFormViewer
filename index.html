@@ -591,6 +591,11 @@ function renderGeneric(o, container) {
     innerTabsHtml += '<button class="inner-tab ' + (i===0?'active':'') + '" data-tab="' + t.id + '" onclick="switchInnerTab(\'' + t.id + '\')">' + t.label + '</button>';
   });
   innerTabsHtml += '</div>';
+  
+  // Identificar qual campo já foi renderizado no conteúdo inicial
+  var firstObjKey = null;
+  var firstArrKey = null;
+  
   var contentsHtml = '';
   if (isArrayFirst) {
     var arrKey = keys[0];
@@ -606,13 +611,16 @@ function renderGeneric(o, container) {
     }
   } else {
     if (tabDefs.length > 0 && tabDefs[0].id === 'geral') {
+      // Aba Geral é a primeira: nenhum objectField/arrayField foi pré-renderizado
       contentsHtml += '<div class="inner-content active" data-content="geral">';
       contentsHtml += renderGenericFields(simpleFields, []);
       contentsHtml += '</div>';
     } else if (tabDefs.length > 0) {
+      // A primeira aba é um objectField ou arrayField — precisamos identificar qual
       contentsHtml += '<div class="inner-content active" data-content="' + tabDefs[0].id + '">';
       if (tabDefs[0].id.indexOf('obj_') === 0) {
         var objKey = tabDefs[0].id.replace('obj_', '');
+        firstObjKey = objKey; // ← marca para pular no loop posterior
         var objField = objectFields.find(function(f) { return f.key === objKey; });
         if (objField) {
           contentsHtml += '<div class="fieldset"><div class="fieldset-title">' + escapeHtml(objField.key) + '</div>';
@@ -621,6 +629,7 @@ function renderGeneric(o, container) {
         }
       } else if (tabDefs[0].id.indexOf('arr_') === 0) {
         var arrKey2 = tabDefs[0].id.replace('arr_', '');
+        firstArrKey = arrKey2; // ← marca para pular no loop posterior
         var arrField = arrayFields.find(function(f) { return f.key === arrKey2; });
         if (arrField) {
           contentsHtml += renderGenericArray(arrField.value, arrField.key);
@@ -629,19 +638,25 @@ function renderGeneric(o, container) {
       contentsHtml += '</div>';
     }
   }
+  
+  // Pular o campo já renderizado no conteúdo inicial
   objectFields.forEach(function(f) {
+    if (firstObjKey && f.key === firstObjKey) return; // pula se já foi renderizado
     contentsHtml += '<div class="inner-content" data-content="obj_' + f.key + '">';
     contentsHtml += '<div class="fieldset"><div class="fieldset-title">' + escapeHtml(f.key) + '</div>';
     contentsHtml += renderGenericObject(f.value, f.key);
     contentsHtml += '</div></div>';
   });
+  
   if (!isArrayFirst) {
     arrayFields.forEach(function(f) {
+      if (firstArrKey && f.key === firstArrKey) return; // pula se já foi renderizado
       contentsHtml += '<div class="inner-content" data-content="arr_' + f.key + '">';
       contentsHtml += renderGenericArray(f.value, f.key);
       contentsHtml += '</div>';
     });
   }
+  
   container.innerHTML = statsHtml + summaryHtml + innerTabsHtml + contentsHtml;
 }
 
