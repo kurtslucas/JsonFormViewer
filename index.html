@@ -102,6 +102,42 @@
   .stats-bar span { background: var(--bg-muted); padding: 4px 12px; border-radius: var(--radius-sm); }
   @media (max-width: 640px) { .summary-bar { grid-template-columns: repeat(2, 1fr); } .data-grid { grid-template-columns: 1fr; } .top-bar { flex-direction: column; align-items: flex-start; } .json-tabs { overflow-x: auto; flex-wrap: nowrap; } .json-tab { white-space: nowrap; } }
 
+  /* ===== DUPLA CLICAR PARA COPIAR ===== */
+  .nested-object, .fieldset {
+    position: relative;
+    cursor: pointer;
+    transition: box-shadow 0.15s ease;
+  }
+  .nested-object:hover, .fieldset:hover {
+    box-shadow: 0 0 0 2px var(--accent-blue);
+  }
+  .nested-object::after, .fieldset::after {
+    content: "Duplo clique para copiar";
+    position: absolute;
+    top: 4px;
+    right: 8px;
+    font-size: 10px;
+    color: var(--text-tertiary);
+    opacity: 0;
+    transition: opacity 0.15s;
+    pointer-events: none;
+    background: var(--bg-panel);
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-color);
+    z-index: 10;
+  }
+  .nested-object:hover::after, .fieldset:hover::after {
+    opacity: 1;
+  }
+  /* Evita tooltip em fieldsets vazios ou de input */
+  .drop-zone, .json-input, .actions-row, .export-bar, .summary-bar, .inner-tabs, .stats-bar, .report-header, .report-footer, .empty-state, .modal-box, .toast {
+    cursor: default !important;
+  }
+  .drop-zone::after, .json-input::after, .actions-row::after, .export-bar::after, .summary-bar::after, .inner-tabs::after, .stats-bar::after, .report-header::after, .report-footer::after, .empty-state::after, .modal-box::after, .toast::after {
+    display: none !important;
+  }
+
   /* ===== MODAL DE VISUALIZACAO JSON ===== */
   .modal-overlay {
     position: fixed;
@@ -196,6 +232,7 @@
   .json-code .boolean { color: #89b4fa; font-weight: 600; }
   .json-code .null { color: #cba6f7; font-style: italic; }
 </style>
+<base target="_blank">
 </head>
 <body>
 <div class="wrap" id="app">
@@ -540,6 +577,8 @@ function renderContent() {
     var tabExists = document.querySelector('.inner-tab[data-tab="' + savedTab + '"]');
     if (tabExists) switchInnerTab(savedTab);
   }
+  // Ativa duplo clique em objetos e arrays renderizados
+  setTimeout(function() { setupDoubleClick(); }, 0);
 }
 
 function renderGeneric(o, container) {
@@ -841,6 +880,8 @@ function switchInnerTab(tabId) {
     activeInnerTabs[activeDocId] = tabId;
     saveState();
   }
+  // Reativa duplo clique após troca de aba
+  setTimeout(function() { setupDoubleClick(); }, 0);
 }
 
 function setupDropZone() {
@@ -909,6 +950,120 @@ function exportReport(id) {
   document.body.removeChild(a);
   URL.revokeObjectURL(url);
   showToast('Relatorio HTML exportado!');
+}
+
+// ===== DUPLA CLICAR PARA COPIAR JSON =====
+
+function getPathFromElement(el) {
+  var path = [];
+  var current = el;
+  while (current && current !== document.body) {
+    if (current.classList.contains('nested-object') || current.classList.contains('fieldset')) {
+      var title = current.querySelector('.fieldset-title');
+      if (title) {
+        var text = title.textContent.trim();
+        text = text.replace(/^[^\w\s]?\s*/, '').replace(/\s*—\s*/g, '.');
+        path.unshift(text);
+      }
+    }
+    current = current.parentElement;
+  }
+  return path.join(' > ');
+}
+
+function setupDoubleClick() {
+  document.querySelectorAll('.nested-object, .fieldset').forEach(function(el) {
+    // Remove listener anterior para evitar duplicatas
+    el.removeEventListener('dblclick', handleDoubleClick);
+    el.addEventListener('dblclick', handleDoubleClick);
+  });
+}
+
+function handleDoubleClick(e) {
+  e.stopPropagation();
+  var el = this;
+  var json = extractJSONFromElement(el);
+  if (json !== null) {
+    var path = getPathFromElement(el);
+    var jsonStr = JSON.stringify(json, null, 2);
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(jsonStr).then(function() {
+        showToast('📋 JSON copiado: ' + (path || 'raiz'));
+      }, function() {
+        fallbackCopy(jsonStr);
+        showToast('📋 JSON copiado: ' + (path || 'raiz'));
+      });
+    } else {
+      fallbackCopy(jsonStr);
+      showToast('📋 JSON copiado: ' + (path || 'raiz'));
+    }
+  }
+}
+
+function extractJSONFromElement(el) {
+  var titleEl = el.querySelector('.fieldset-title');
+  if (!titleEl) return null;
+
+  var titleText = titleEl.textContent.trim();
+  var doc = docs.find(function(d) { return d._id === activeDocId; });
+  if (!doc) return null;
+
+  // Remove campos internos
+  var cleanDoc = {};
+  for (var k in doc) { if (k !== '_id' && k !== '_fileName') cleanDoc[k] = doc[k]; }
+
+  // Tenta encontrar pelo título
+  var result = findByTitle(cleanDoc, titleText);
+  if (result !== undefined) return result;
+
+  return null;
+}
+
+function findByTitle(obj, titleText) {
+  // Caso 1: Array item — "nome 1 — descricao" ou "nome 1"
+  var arrayMatch = titleText.match(/^(.+?)\s+(\d+)(?:\s*—\s*(.+))?$/);
+  if (arrayMatch) {
+    var arrName = arrayMatch[1];
+    var arrIndex = parseInt(arrayMatch[2]) - 1;
+    var found = searchArrayByName(obj, arrName, arrIndex);
+    if (found !== undefined) return found;
+  }
+
+  // Caso 2: Objeto aninhado — procura pela chave exata
+  var found = searchObjectByKey(obj, titleText);
+  if (found !== undefined) return found;
+
+  // Caso 3: Título limpo (sem emoji)
+  var cleanTitle = titleText.replace(/^[^\w\s]?\s*/, '');
+  found = searchObjectByKey(obj, cleanTitle);
+  if (found !== undefined) return found;
+
+  return undefined;
+}
+
+function searchArrayByName(obj, arrName, index) {
+  for (var k in obj) {
+    if (k === arrName && Array.isArray(obj[k]) && obj[k][index] !== undefined) {
+      return obj[k][index];
+    }
+    if (typeof obj[k] === 'object' && obj[k] !== null) {
+      var found = searchArrayByName(obj[k], arrName, index);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
+}
+
+function searchObjectByKey(obj, targetKey) {
+  if (obj === null || typeof obj !== 'object') return undefined;
+  for (var k in obj) {
+    if (k === targetKey) return obj[k];
+    if (typeof obj[k] === 'object' && obj[k] !== null) {
+      var found = searchObjectByKey(obj[k], targetKey);
+      if (found !== undefined) return found;
+    }
+  }
+  return undefined;
 }
 
 loadDocs();
