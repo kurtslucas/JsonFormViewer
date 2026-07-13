@@ -130,11 +130,11 @@
   .nested-object:hover::after, .fieldset:hover::after {
     opacity: 1;
   }
-  /* Evita tooltip em fieldsets vazios ou de input */
-  .drop-zone, .json-input, .actions-row, .export-bar, .summary-bar, .inner-tabs, .stats-bar, .report-header, .report-footer, .empty-state, .modal-box, .toast {
+  /* Evita tooltip em elementos que nao sao copiaveis */
+  .drop-zone, .json-input, .actions-row, .export-bar, .summary-bar, .inner-tabs, .stats-bar, .report-header, .report-footer, .empty-state, .modal-box, .toast, .data-item {
     cursor: default !important;
   }
-  .drop-zone::after, .json-input::after, .actions-row::after, .export-bar::after, .summary-bar::after, .inner-tabs::after, .stats-bar::after, .report-header::after, .report-footer::after, .empty-state::after, .modal-box::after, .toast::after {
+  .drop-zone::after, .json-input::after, .actions-row::after, .export-bar::after, .summary-bar::after, .inner-tabs::after, .stats-bar::after, .report-header::after, .report-footer::after, .empty-state::after, .modal-box::after, .toast::after, .data-item::after {
     display: none !important;
   }
 
@@ -641,12 +641,12 @@ function renderGeneric(o, container) {
     var arrKey = keys[0];
     var arr = o[arrKey];
     contentsHtml += '<div class="inner-content active" data-content="main_array">';
-    contentsHtml += renderGenericArray(arr, arrKey);
+    contentsHtml += renderGenericArray(arr, arrKey, arrKey);
     contentsHtml += '</div>';
     if (simpleFields.length || objectFields.length > 0) {
       tabDefs.push({id: 'geral', label: 'Outros campos'});
       contentsHtml += '<div class="inner-content" data-content="geral">';
-      contentsHtml += renderGenericFields(simpleFields, objectFields);
+      contentsHtml += renderGenericFields(simpleFields, objectFields, '');
       contentsHtml += '</div>';
     }
   } else {
@@ -663,8 +663,8 @@ function renderGeneric(o, container) {
         firstObjKey = objKey; // ← marca para pular no loop posterior
         var objField = objectFields.find(function(f) { return f.key === objKey; });
         if (objField) {
-          contentsHtml += '<div class="fieldset"><div class="fieldset-title">' + escapeHtml(objField.key) + '</div>';
-          contentsHtml += renderGenericObject(objField.value, objField.key);
+          contentsHtml += '<div class="fieldset" data-json-path="' + escapeHtml(objField.key) + '"><div class="fieldset-title">' + escapeHtml(objField.key) + '</div>';
+          contentsHtml += renderGenericObject(objField.value, objField.key, objField.key);
           contentsHtml += '</div>';
         }
       } else if (tabDefs[0].id.indexOf('arr_') === 0) {
@@ -672,7 +672,7 @@ function renderGeneric(o, container) {
         firstArrKey = arrKey2; // ← marca para pular no loop posterior
         var arrField = arrayFields.find(function(f) { return f.key === arrKey2; });
         if (arrField) {
-          contentsHtml += renderGenericArray(arrField.value, arrField.key);
+          contentsHtml += renderGenericArray(arrField.value, arrField.key, arrField.key);
         }
       }
       contentsHtml += '</div>';
@@ -683,8 +683,8 @@ function renderGeneric(o, container) {
   objectFields.forEach(function(f) {
     if (firstObjKey && f.key === firstObjKey) return; // pula se já foi renderizado
     contentsHtml += '<div class="inner-content" data-content="obj_' + f.key + '">';
-    contentsHtml += '<div class="fieldset"><div class="fieldset-title">' + escapeHtml(f.key) + '</div>';
-    contentsHtml += renderGenericObject(f.value, f.key);
+    contentsHtml += '<div class="fieldset" data-json-path="' + escapeHtml(f.key) + '"><div class="fieldset-title">' + escapeHtml(f.key) + '</div>';
+    contentsHtml += renderGenericObject(f.value, f.key, f.key);
     contentsHtml += '</div></div>';
   });
   
@@ -692,7 +692,7 @@ function renderGeneric(o, container) {
     arrayFields.forEach(function(f) {
       if (firstArrKey && f.key === firstArrKey) return; // pula se já foi renderizado
       contentsHtml += '<div class="inner-content" data-content="arr_' + f.key + '">';
-      contentsHtml += renderGenericArray(f.value, f.key);
+      contentsHtml += renderGenericArray(f.value, f.key, f.key);
       contentsHtml += '</div>';
     });
   }
@@ -736,7 +736,8 @@ function classifyField(k, v, simpleFields, arrayFields, objectFields) {
   } else if (typeof v === 'object') { objectFields.push({key: k, value: v}); }
 }
 
-function renderGenericFields(simpleFields, objectFields) {
+function renderGenericFields(simpleFields, objectFields, jsonPath) {
+  jsonPath = jsonPath || '';
   var html = '';
   if (simpleFields.length) {
     html += '<div class="fieldset"><div class="fieldset-title">campos</div><div class="data-grid">';
@@ -745,30 +746,33 @@ function renderGenericFields(simpleFields, objectFields) {
   }
   if (objectFields.length) {
     objectFields.forEach(function(f) {
-      html += '<div class="fieldset"><div class="fieldset-title">' + escapeHtml(f.key) + '</div>';
-      html += renderGenericObject(f.value, f.key);
+      var objPath = jsonPath ? jsonPath + '.' + f.key : f.key;
+      html += '<div class="fieldset" data-json-path="' + escapeHtml(objPath) + '"><div class="fieldset-title">' + escapeHtml(f.key) + '</div>';
+      html += renderGenericObject(f.value, f.key, objPath);
       html += '</div>';
     });
   }
   return html;
 }
 
-function renderGenericArray(arr, label) {
+function renderGenericArray(arr, label, jsonPath) {
+  jsonPath = jsonPath || label;
   if (!arr || arr.length === 0) {
     return '<div class="empty-state">Nenhum item em ' + escapeHtml(label) + '.</div>';
   }
   var html = '';
   arr.forEach(function(item, idx) {
+    var itemPath = jsonPath + '.' + idx;
     if (typeof item === 'object' && item !== null) {
-      html += '<div class="fieldset"><div class="fieldset-title">' + escapeHtml(label) + ' ' + (idx+1);
+      html += '<div class="fieldset" data-json-path="' + escapeHtml(itemPath) + '"><div class="fieldset-title">' + escapeHtml(label) + ' ' + (idx+1);
       if (item.name) html += ' \u2014 ' + escapeHtml(String(item.name));
       else if (item.title) html += ' \u2014 ' + escapeHtml(String(item.title));
       else if (item.id) html += ' (id: ' + escapeHtml(String(item.id)) + ')';
       html += '</div>';
-      html += renderGenericObject(item, label);
+      html += renderGenericObject(item, label, itemPath);
       html += '</div>';
     } else {
-      html += '<div class="fieldset"><div class="fieldset-title">' + escapeHtml(label) + ' ' + (idx+1) + '</div>';
+      html += '<div class="fieldset" data-json-path="' + escapeHtml(itemPath) + '"><div class="fieldset-title">' + escapeHtml(label) + ' ' + (idx+1) + '</div>';
       html += '<div class="data-grid"><div class="data-item"><span class="data-label">valor</span>' + fmtVal(item, 'valor') + '</div></div>';
       html += '</div>';
     }
@@ -776,10 +780,12 @@ function renderGenericArray(arr, label) {
   return html;
 }
 
-function renderGenericObject(obj, parentKey) {
+function renderGenericObject(obj, parentKey, jsonPath) {
+  jsonPath = jsonPath || parentKey;
   var html = '<div class="data-grid">';
   Object.keys(obj).forEach(function(k) {
     var v = obj[k];
+    var propPath = jsonPath + '.' + k;
     if (v === null || v === undefined) {
       html += '<div class="data-item"><span class="data-label">' + escapeHtml(k) + '</span>' + fmtVal(v, k) + '</div>';
     } else if (typeof v === 'boolean') {
@@ -796,9 +802,10 @@ function renderGenericObject(obj, parentKey) {
         html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + ' (' + v.length + ' itens)</span>';
         v.forEach(function(subItem, subIdx) {
           var subTitle = subItem.nome || subItem.name || subItem.title || subItem.id || subItem.rota || subItem.bucket || subItem.codigo || ('Item ' + (subIdx + 1));
-          html += '<div class="nested-object" style="margin-top:8px;">';
+          var subPath = propPath + '.' + subIdx;
+          html += '<div class="nested-object" data-json-path="' + escapeHtml(subPath) + '" style="margin-top:8px;">';
           html += '<div class="fieldset-title" style="font-size:13px;padding-bottom:6px;margin-bottom:10px;">' + escapeHtml(subTitle) + '</div>';
-          html += renderGenericObject(subItem, k);
+          html += renderGenericObject(subItem, k, subPath);
           html += '</div>';
         });
         html += '</div>';
@@ -809,10 +816,11 @@ function renderGenericObject(obj, parentKey) {
         // Array misto - renderiza cada item recursivamente
         html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + ' (' + v.length + ' itens)</span>';
         v.forEach(function(subItem, subIdx) {
+          var subPath = propPath + '.' + subIdx;
           if (subItem !== null && typeof subItem === 'object') {
-            html += '<div class="nested-object" style="margin-top:8px;">';
+            html += '<div class="nested-object" data-json-path="' + escapeHtml(subPath) + '" style="margin-top:8px;">';
             html += '<div class="fieldset-title" style="font-size:13px;padding-bottom:6px;margin-bottom:10px;">Item ' + (subIdx + 1) + '</div>';
-            html += renderGenericObject(subItem, k);
+            html += renderGenericObject(subItem, k, subPath);
             html += '</div>';
           } else {
             html += '<div class="data-item" style="margin-top:4px;"><span class="data-label">[' + subIdx + ']</span>' + fmtVal(subItem, k) + '</div>';
@@ -823,8 +831,8 @@ function renderGenericObject(obj, parentKey) {
     } else if (typeof v === 'object') {
       // Objeto aninhado - renderiza recursivamente dentro de nested-object
       html += '<div class="data-item" style="grid-column:1/-1;"><span class="data-label">' + escapeHtml(k) + '</span>';
-      html += '<div class="nested-object">';
-      html += renderGenericObject(v, k);
+      html += '<div class="nested-object" data-json-path="' + escapeHtml(propPath) + '">';
+      html += renderGenericObject(v, k, propPath);
       html += '</div></div>';
     }
   });
@@ -954,26 +962,8 @@ function exportReport(id) {
 
 // ===== DUPLA CLICAR PARA COPIAR JSON =====
 
-function getPathFromElement(el) {
-  var path = [];
-  var current = el;
-  while (current && current !== document.body) {
-    if (current.classList.contains('nested-object') || current.classList.contains('fieldset')) {
-      var title = current.querySelector('.fieldset-title');
-      if (title) {
-        var text = title.textContent.trim();
-        text = text.replace(/^[^\w\s]?\s*/, '').replace(/\s*—\s*/g, '.');
-        path.unshift(text);
-      }
-    }
-    current = current.parentElement;
-  }
-  return path.join(' > ');
-}
-
 function setupDoubleClick() {
-  document.querySelectorAll('.nested-object, .fieldset').forEach(function(el) {
-    // Remove listener anterior para evitar duplicatas
+  document.querySelectorAll('.nested-object[data-json-path], .fieldset[data-json-path]').forEach(function(el) {
     el.removeEventListener('dblclick', handleDoubleClick);
     el.addEventListener('dblclick', handleDoubleClick);
   });
@@ -982,88 +972,51 @@ function setupDoubleClick() {
 function handleDoubleClick(e) {
   e.stopPropagation();
   var el = this;
-  var json = extractJSONFromElement(el);
-  if (json !== null) {
-    var path = getPathFromElement(el);
-    var jsonStr = JSON.stringify(json, null, 2);
-    if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(jsonStr).then(function() {
-        showToast('📋 JSON copiado: ' + (path || 'raiz'));
-      }, function() {
-        fallbackCopy(jsonStr);
-        showToast('📋 JSON copiado: ' + (path || 'raiz'));
-      });
-    } else {
-      fallbackCopy(jsonStr);
-      showToast('📋 JSON copiado: ' + (path || 'raiz'));
-    }
-  }
-}
-
-function extractJSONFromElement(el) {
-  var titleEl = el.querySelector('.fieldset-title');
-  if (!titleEl) return null;
-
-  var titleText = titleEl.textContent.trim();
+  var path = el.getAttribute('data-json-path');
+  if (!path) return;
+  
   var doc = docs.find(function(d) { return d._id === activeDocId; });
-  if (!doc) return null;
-
-  // Remove campos internos
+  if (!doc) return;
+  
+  // Navega pelo path no documento original
   var cleanDoc = {};
   for (var k in doc) { if (k !== '_id' && k !== '_fileName') cleanDoc[k] = doc[k]; }
-
-  // Tenta encontrar pelo título
-  var result = findByTitle(cleanDoc, titleText);
-  if (result !== undefined) return result;
-
-  return null;
+  
+  var value = getValueByPath(cleanDoc, path);
+  if (value === undefined) {
+    showToast('Não foi possível encontrar o JSON');
+    return;
+  }
+  
+  var jsonStr = JSON.stringify(value, null, 2);
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(jsonStr).then(function() {
+      showToast('📋 JSON copiado: ' + path);
+    }, function() {
+      fallbackCopy(jsonStr);
+      showToast('📋 JSON copiado: ' + path);
+    });
+  } else {
+    fallbackCopy(jsonStr);
+    showToast('📋 JSON copiado: ' + path);
+  }
 }
 
-function findByTitle(obj, titleText) {
-  // Caso 1: Array item — "nome 1 — descricao" ou "nome 1"
-  var arrayMatch = titleText.match(/^(.+?)\s+(\d+)(?:\s*—\s*(.+))?$/);
-  if (arrayMatch) {
-    var arrName = arrayMatch[1];
-    var arrIndex = parseInt(arrayMatch[2]) - 1;
-    var found = searchArrayByName(obj, arrName, arrIndex);
-    if (found !== undefined) return found;
-  }
-
-  // Caso 2: Objeto aninhado — procura pela chave exata
-  var found = searchObjectByKey(obj, titleText);
-  if (found !== undefined) return found;
-
-  // Caso 3: Título limpo (sem emoji)
-  var cleanTitle = titleText.replace(/^[^\w\s]?\s*/, '');
-  found = searchObjectByKey(obj, cleanTitle);
-  if (found !== undefined) return found;
-
-  return undefined;
-}
-
-function searchArrayByName(obj, arrName, index) {
-  for (var k in obj) {
-    if (k === arrName && Array.isArray(obj[k]) && obj[k][index] !== undefined) {
-      return obj[k][index];
-    }
-    if (typeof obj[k] === 'object' && obj[k] !== null) {
-      var found = searchArrayByName(obj[k], arrName, index);
-      if (found !== undefined) return found;
+function getValueByPath(obj, path) {
+  var parts = path.split('.');
+  var current = obj;
+  for (var i = 0; i < parts.length; i++) {
+    if (current === null || current === undefined) return undefined;
+    var key = parts[i];
+    // Tenta como número (índice de array) primeiro
+    var idx = parseInt(key, 10);
+    if (!isNaN(idx) && Array.isArray(current)) {
+      current = current[idx];
+    } else {
+      current = current[key];
     }
   }
-  return undefined;
-}
-
-function searchObjectByKey(obj, targetKey) {
-  if (obj === null || typeof obj !== 'object') return undefined;
-  for (var k in obj) {
-    if (k === targetKey) return obj[k];
-    if (typeof obj[k] === 'object' && obj[k] !== null) {
-      var found = searchObjectByKey(obj[k], targetKey);
-      if (found !== undefined) return found;
-    }
-  }
-  return undefined;
+  return current;
 }
 
 loadDocs();
