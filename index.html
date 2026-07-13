@@ -969,37 +969,16 @@ function setupDoubleClick() {
   });
 }
 
-function handleDoubleClick(e) {
-  e.stopPropagation();
-  var el = this;
-  var path = el.getAttribute('data-json-path');
-  if (!path) return;
-  
-  var doc = docs.find(function(d) { return d._id === activeDocId; });
-  if (!doc) return;
-  
-  // Navega pelo path no documento original
-  var cleanDoc = {};
-  for (var k in doc) { if (k !== '_id' && k !== '_fileName') cleanDoc[k] = doc[k]; }
-  
-  var value = getValueByPath(cleanDoc, path);
-  if (value === undefined) {
-    showToast('Não foi possível encontrar o JSON');
-    return;
-  }
-  
-  var jsonStr = JSON.stringify(value, null, 2);
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(jsonStr).then(function() {
-      showToast('📋 JSON copiado: ' + path);
-    }, function() {
-      fallbackCopy(jsonStr);
-      showToast('📋 JSON copiado: ' + path);
-    });
-  } else {
-    fallbackCopy(jsonStr);
-    showToast('📋 JSON copiado: ' + path);
-  }
+{
+  "has_invoice_key": null,
+  "has_invoice_number": null,
+  "has_invoice_xml": null,
+  "has_invoice_pdf": null,
+  "has_invoice_label": null,
+  "has_payment_form": null,
+  "has_track": null,
+  "has_track_url": null,
+  "has_label": null
 }
 
 function getValueByPath(obj, path) {
