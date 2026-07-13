@@ -969,16 +969,54 @@ function setupDoubleClick() {
   });
 }
 
-{
-  "has_invoice_key": null,
-  "has_invoice_number": null,
-  "has_invoice_xml": null,
-  "has_invoice_pdf": null,
-  "has_invoice_label": null,
-  "has_payment_form": null,
-  "has_track": null,
-  "has_track_url": null,
-  "has_label": null
+function handleDoubleClick(e) {
+  e.stopPropagation();
+  var el = this;
+  var path = el.getAttribute('data-json-path');
+  if (!path) return;
+
+  var doc = docs.find(function(d) { return d._id === activeDocId; });
+  if (!doc) return;
+
+  var cleanDoc = {};
+  for (var k in doc) { if (k !== '_id' && k !== '_fileName') cleanDoc[k] = doc[k]; }
+
+  var value = getValueByPath(cleanDoc, path);
+  if (value === undefined) {
+    showToast('Não foi possível encontrar o JSON');
+    return;
+  }
+
+  var jsonStr = JSON.stringify(value, null, 2);
+
+  // Ctrl + Duplo Clique = carregar como novo JSON na ferramenta
+  if (e.ctrlKey || e.metaKey) {
+    var newDoc = {};
+    for (var k in value) { newDoc[k] = value[k]; }
+    newDoc._id = genId();
+    newDoc._fileName = path;
+    docs.push(newDoc);
+    activeDocId = newDoc._id;
+    saveDocs();
+    saveState();
+    renderTabs();
+    renderContent();
+    showToast('📂 JSON carregado em nova aba: ' + path);
+    return;
+  }
+
+  // Duplo clique normal = copiar
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(jsonStr).then(function() {
+      showToast('📋 JSON copiado: ' + path);
+    }, function() {
+      fallbackCopy(jsonStr);
+      showToast('📋 JSON copiado: ' + path);
+    });
+  } else {
+    fallbackCopy(jsonStr);
+    showToast('📋 JSON copiado: ' + path);
+  }
 }
 
 function getValueByPath(obj, path) {
